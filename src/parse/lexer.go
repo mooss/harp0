@@ -1,9 +1,13 @@
 package parse
 
 import (
+	"errors"
+	"fmt"
 	"unicode"
 	"unicode/utf8"
 )
+
+var ErrLexing = errors.New("lexing error")
 
 // Lexer performs lexical analysis for Harp source code, that is to say it turns input text into tokens.
 type Lexer struct {
@@ -57,7 +61,7 @@ func (l *Lexer) peekChar() rune {
 }
 
 // NextToken produces the next token by moving the lexer forward.
-func (l *Lexer) NextToken() Token {
+func (l *Lexer) NextToken() (Token, error) {
 	var tok Token
 
 	l.skipWhitespace()
@@ -88,10 +92,15 @@ func (l *Lexer) NextToken() Token {
 	case '_':
 		tok = l.monotok(TOKEN_UNDER)
 	case '"':
+		var err error
 		tok.Line = l.line
 		tok.Column = l.column
 		tok.Type = TOKEN_STRING
-		tok.Literal = l.readString()
+		tok.Literal, err = l.readString()
+
+		if err != nil {
+			return tok, err
+		}
 	case 0:
 		tok.Literal = ""
 		tok.Type = TOKEN_EOF
@@ -103,19 +112,19 @@ func (l *Lexer) NextToken() Token {
 			tok.Column = l.column
 			tok.Literal = l.readSymbol()
 			tok.Type = lookupSymbol(tok.Literal)
-			return tok
+			return tok, nil
 		} else if isDigit(l.current) {
 			tok.Line = l.line
 			tok.Column = l.column
 			tok.Type, tok.Literal = l.readNumber()
-			return tok
+			return tok, nil
 		} else {
 			tok = l.monotok(TOKEN_ILLEGAL)
 		}
 	}
 
 	l.forward()
-	return tok
+	return tok, nil
 }
 
 // monotok is a shorcut that builds single-rune tokens.
@@ -186,12 +195,16 @@ func (l *Lexer) readNumber() (TokenType, string) {
 	return tokenType, l.input[position:l.currentPosition]
 }
 
-func (l *Lexer) readString() string {
+func (l *Lexer) readString() (string, error) {
 	l.forward() // Consume opening ".
 	position := l.currentPosition
 
 	for {
-		if l.current == '"' || l.current == 0 {
+		if l.current == 0 {
+			return "", fmt.Errorf("%w: met EOF while reading string", ErrLexing)
+		}
+
+		if l.current == '"' {
 			break
 		}
 
@@ -204,7 +217,8 @@ func (l *Lexer) readString() string {
 
 	str := l.input[position:l.currentPosition]
 	l.forward() // Consume closing ".
-	return str
+
+	return str, nil
 }
 
 /////////////////////

@@ -23,7 +23,12 @@ func main() {
 		lexer := parse.NewLexer(input)
 
 		for {
-			tok := lexer.NextToken()
+			tok, err := lexer.NextToken()
+			if err != nil {
+				fmt.Println(err)
+				break
+			}
+
 			if tok.Type == parse.TOKEN_EOF || tok.Type == parse.TOKEN_ILLEGAL {
 				break
 			}
