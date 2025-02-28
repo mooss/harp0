@@ -139,6 +139,52 @@ func TestLexer(t *testing.T) {
 			input: `"hello`,
 			err:   ErrLexing,
 		},
+		{
+			name:  "String with escaped characters",
+			input: `"hello\nworld\t\"quoted\"\\escaped\\"`,
+			expected: []Token{
+				{Type: TOKEN_STRING, Literal: `hello\nworld\t\"quoted\"\\escaped\\`, Line: 1, Column: 0},
+				{Type: TOKEN_EOF, Literal: "", Line: 1, Column: 37},
+			},
+		},
+		{
+			name:  "Unicode characters",
+			input: "你好世界 ; This is a comment with Unicode: こんにちは",
+			expected: []Token{
+				{Type: TOKEN_SYMBOL, Literal: "你好世界", Line: 1, Column: 0},
+				{Type: TOKEN_COMMENT, Literal: "; This is a comment with Unicode: こんにちは", Line: 1, Column: 5},
+				{Type: TOKEN_EOF, Literal: "", Line: 1, Column: 44},
+			},
+		},
+		{
+			name:  "Long numbers",
+			input: "12345678901234567890 1234567890.1234567890",
+			expected: []Token{
+				{Type: TOKEN_INT, Literal: "12345678901234567890", Line: 1, Column: 0},
+				{Type: TOKEN_FLOAT, Literal: "1234567890.1234567890", Line: 1, Column: 21},
+				{Type: TOKEN_EOF, Literal: "", Line: 1, Column: 42},
+			},
+		},
+		{
+			name:  "Zero width characters",
+			input: "a\u200b\u200cb",
+			expected: []Token{
+				{Type: TOKEN_SYMBOL, Literal: "a", Line: 1, Column: 0},
+				{Type: TOKEN_ILLEGAL, Literal: "\u200b", Line: 1, Column: 1},
+				{Type: TOKEN_ILLEGAL, Literal: "\u200c", Line: 1, Column: 2},
+				{Type: TOKEN_SYMBOL, Literal: "b", Line: 1, Column: 3},
+				{Type: TOKEN_EOF, Literal: "", Line: 1, Column: 4},
+			},
+		},
+		{
+			name:  "BOM character", // Byte order mark, weird unicode thingie.
+			input: "\ufeffabc",
+			expected: []Token{
+				{Type: TOKEN_ILLEGAL, Literal: "\ufeff", Line: 1, Column: 0},
+				{Type: TOKEN_SYMBOL, Literal: "abc", Line: 1, Column: 1},
+				{Type: TOKEN_EOF, Literal: "", Line: 1, Column: 4},
+			},
+		},
 	}
 
 	for _, tt := range tests {
