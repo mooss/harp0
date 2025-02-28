@@ -17,11 +17,11 @@ type Lexer struct {
 	// currentPosition is the position of the current character.
 	currentPosition int
 
-	// nextPosition is the position of the next character.
-	nextPosition int
-
 	// current is the character under examination.
 	current rune
+
+	// currentWidth is the currentWidth of the current rune (the number of bytes used to represent it).
+	currentWidth int
 
 	// line is the current line number in the input.
 	line int
@@ -31,33 +31,35 @@ type Lexer struct {
 }
 
 func NewLexer(input string) *Lexer {
-	l := &Lexer{input: input, line: 1, column: 0}
+	l := &Lexer{input: input, line: 1, column: -1} // -1 to ensure first column is 0.
 	l.forward()
 	return l
 }
 
 // forward moves the lexer to the forward position.
 func (l *Lexer) forward() {
-	l.currentPosition = l.nextPosition
+	if l.currentPosition >= len(l.input) { // Already at EOF.
+		return
+	}
 
-	if l.nextPosition >= len(l.input) { // EOF.
+	l.currentPosition += l.currentWidth
+	l.column += 1
+	if l.currentPosition >= len(l.input) { // Reached EOF.
 		l.current = 0
 		return
 	}
 
-	r, size := utf8.DecodeRuneInString(l.input[l.nextPosition:])
-	l.current = r
-	l.nextPosition += size
-	l.column += size
+	l.current, l.currentWidth = utf8.DecodeRuneInString(l.input[l.currentPosition:])
 }
 
 // peekChar return the rune of *the next byte* (not the next rune!!!).
 func (l *Lexer) peekChar() rune {
-	if l.nextPosition >= len(l.input) {
+	npos := l.currentPosition + l.currentWidth
+	if npos >= len(l.input) {
 		return 0
 	}
 
-	return rune(l.input[l.nextPosition])
+	return rune(l.input[npos])
 }
 
 // NextToken produces the next token by moving the lexer forward.
@@ -147,10 +149,10 @@ func (l *Lexer) skipWhitespace() {
 			l.forward()
 		case '\n':
 			l.line++
-			l.column = 0
+			l.column = -1 // -1 to ensure first column is 0.
 			l.forward()
 		case ';':
-			l.skipComment()
+			l.skipComment() // MAKE comment their own TOKEN_TYPE
 		default:
 			return
 		}
