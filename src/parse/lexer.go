@@ -31,6 +31,10 @@ type Lexer struct {
 }
 
 func NewLexer(input string) *Lexer {
+	if len(input) == 0 {
+		return &Lexer{line: 1}
+	}
+
 	l := &Lexer{input: input, line: 1, column: -1} // -1 to ensure first column is 0.
 	l.forward()
 	return l
