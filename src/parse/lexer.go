@@ -84,7 +84,7 @@ func (l *Lexer) NextToken() (Token, error) {
 	case ':':
 		tok = l.monotok(TOKEN_COLON)
 	case ';':
-		tok = l.monotok(TOKEN_COMMA)
+		tok = l.monotok(TOKEN_SEMICOLON)
 	case '|':
 		tok = l.monotok(TOKEN_PIPE)
 	case '\'':
