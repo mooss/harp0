@@ -1,13 +1,38 @@
 package parse
 
 import (
-	"errors"
 	"fmt"
+	"strings"
 	"unicode"
 	"unicode/utf8"
 )
 
-var ErrLexing = errors.New("lexing error")
+////////////
+// Errors //
+////////////
+
+type LexicalError struct {
+	// Token is the token that was being parsed when the error occured.
+	Token
+
+	// Kind is a short string explaining more precisely the kind of error that happened, for
+	// instance "unterminated string" or "bad number".
+	Kind LexicalErrorKind
+}
+
+func (le LexicalError) Error() string {
+	return fmt.Sprintf("lexical error at line %d column %d: %s", le.Line, le.Column, le.Kind)
+}
+
+type LexicalErrorKind string
+
+const (
+	UnterminatedString LexicalErrorKind = "unterminated string"
+)
+
+///////////
+// Lexer //
+///////////
 
 // Lexer performs lexical analysis for Harp source code, that is to say it turns input text into tokens.
 type Lexer struct {
@@ -62,7 +87,7 @@ func (l *Lexer) nextLine() {
 	l.column = -1 // -1 to ensure first column is 0.
 }
 
-// peekChar return the rune of *the next byte* (not the next rune!!!).
+// peekChar return the rune of *the next byte* (not exactly the next rune).
 func (l *Lexer) peekChar() rune {
 	npos := l.currentPosition + l.currentWidth
 	if npos >= len(l.input) {
@@ -73,7 +98,7 @@ func (l *Lexer) peekChar() rune {
 }
 
 // NextToken produces the next token by moving the lexer forward.
-func (l *Lexer) NextToken() (Token, error) {
+func (l *Lexer) NextToken() (Token, *LexicalError) {
 	var tok Token
 
 	l.skipWhitespace()
@@ -102,7 +127,7 @@ func (l *Lexer) NextToken() (Token, error) {
 	case '_':
 		tok = l.monotok(TOKEN_UNDER)
 	case '"':
-		var err error
+		var err *LexicalError
 		tok.Line = l.line
 		tok.Column = l.column
 		tok.Type = TOKEN_STRING
@@ -214,13 +239,20 @@ func (l *Lexer) readNumber() (TokenType, string) {
 	return tokenType, l.input[position:l.currentPosition]
 }
 
-func (l *Lexer) readString() (string, error) {
-	l.forward() // Consume opening ".
-	position := l.currentPosition
+func (l *Lexer) readString() (string, *LexicalError) {
+	tok := Token{
+		Type:   TOKEN_STRING,
+		Line:   l.line,
+		Column: l.column,
+	}
+
+	l.forward() // Consume opening double quote.
+	start := l.currentPosition
 
 	for {
 		if l.current == 0 {
-			return "", fmt.Errorf("%w: met EOF while reading string", ErrLexing)
+			tok.Literal = l.input[start:l.currentPosition]
+			return "", &LexicalError{tok, UnterminatedString}
 		}
 
 		if l.current == '"' {
@@ -234,7 +266,7 @@ func (l *Lexer) readString() (string, error) {
 		l.forward()
 	}
 
-	str := l.input[position:l.currentPosition]
+	str := l.input[start:l.currentPosition]
 	l.forward() // Consume closing ".
 
 	return str, nil

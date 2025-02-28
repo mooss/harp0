@@ -1,7 +1,6 @@
 package parse
 
 import (
-	"errors"
 	"testing"
 )
 
@@ -10,7 +9,7 @@ func TestLexer(t *testing.T) {
 		name     string
 		input    string
 		expected []Token
-		err      error
+		err      *LexicalError
 	}{
 		{
 			name:  "Basic symbols",
@@ -135,9 +134,12 @@ func TestLexer(t *testing.T) {
 			},
 		},
 		{
-			name:  "Unclosed string",
+			name:  "Unterminated string",
 			input: `"hello`,
-			err:   ErrLexing,
+			err: &LexicalError{
+				Token: Token{Type: TOKEN_STRING, Literal: `hello`, Line: 1, Column: 0},
+				Kind:  UnterminatedString,
+			},
 		},
 		{
 			name:  "String with escaped characters",
@@ -193,7 +195,7 @@ func TestLexer(t *testing.T) {
 
 			if tt.err != nil {
 				var (
-					err error
+					err *LexicalError
 					tok Token
 				)
 
@@ -204,8 +206,8 @@ func TestLexer(t *testing.T) {
 					}
 				}
 
-				if !errors.Is(err, tt.err) {
-					t.Errorf("Unexpected error: %v (%T), expected %T", err, err, tt.err)
+				if err == nil || *err != *tt.err {
+					t.Errorf("expected error %+v, got %+v", *err, *tt.err)
 				}
 
 				return
