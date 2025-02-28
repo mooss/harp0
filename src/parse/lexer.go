@@ -52,6 +52,12 @@ func (l *Lexer) forward() {
 	l.current, l.currentWidth = utf8.DecodeRuneInString(l.input[l.currentPosition:])
 }
 
+// nextLine registers that the input has moved to the next line (it does not change the position).
+func (l *Lexer) nextLine() {
+	l.line++
+	l.column = -1 // -1 to ensure first column is 0.
+}
+
 // peekChar return the rune of *the next byte* (not the next rune!!!).
 func (l *Lexer) peekChar() rune {
 	npos := l.currentPosition + l.currentWidth
@@ -85,8 +91,6 @@ func (l *Lexer) NextToken() (Token, error) {
 		tok = l.monotok(TOKEN_DOT)
 	case ':':
 		tok = l.monotok(TOKEN_COLON)
-	case ';':
-		tok = l.monotok(TOKEN_SEMICOLON)
 	case '|':
 		tok = l.monotok(TOKEN_PIPE)
 	case '\'':
@@ -103,11 +107,16 @@ func (l *Lexer) NextToken() (Token, error) {
 		if err != nil {
 			return tok, err
 		}
-	case 0:
-		tok.Literal = ""
-		tok.Type = TOKEN_EOF
+	case ';':
 		tok.Line = l.line
 		tok.Column = l.column
+		tok.Literal = l.readComment()
+		tok.Type = TOKEN_COMMENT
+	case 0:
+		tok.Line = l.line
+		tok.Column = l.column
+		tok.Literal = ""
+		tok.Type = TOKEN_EOF
 	default:
 		if canStartSymbol(l.current) {
 			tok.Line = l.line
@@ -148,25 +157,29 @@ func (l *Lexer) skipWhitespace() {
 		case ' ', '\t', '\r':
 			l.forward()
 		case '\n':
-			l.line++
-			l.column = -1 // -1 to ensure first column is 0.
+			l.nextLine()
 			l.forward()
-		case ';':
-			l.skipComment() // MAKE comment their own TOKEN_TYPE
 		default:
 			return
 		}
 	}
 }
 
-func (l *Lexer) skipComment() {
+/////////////
+// Readers //
+
+func (l *Lexer) readComment() string {
+	position := l.currentPosition
 	for l.current != '\n' && l.current != 0 {
 		l.forward()
 	}
-}
 
-/////////////
-// Readers //
+	if l.current == '\n' {
+		l.nextLine() // This newline will be skipped by the next forward.
+	}
+
+	return l.input[position:l.currentPosition]
+}
 
 func (l *Lexer) readSymbol() string {
 	position := l.currentPosition

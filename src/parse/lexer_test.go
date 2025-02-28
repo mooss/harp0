@@ -44,9 +44,10 @@ func TestLexer(t *testing.T) {
 			},
 		},
 		{
-			name:  "Comments",
+			name:  "Comment at start of line",
 			input: "; This is a comment\n123",
 			expected: []Token{
+				{Type: TOKEN_COMMENT, Literal: "; This is a comment", Line: 1, Column: 0},
 				{Type: TOKEN_INT, Literal: "123", Line: 2, Column: 0},
 				{Type: TOKEN_EOF, Literal: "", Line: 2, Column: 3},
 			},
@@ -99,14 +100,14 @@ func TestLexer(t *testing.T) {
 			},
 		},
 		{
-			name:  "Comments",
+			name:  "Comment at end of line",
 			input: "ignore the rest ; !!!!!@#",
 			expected: []Token{
 				{Type: TOKEN_SYMBOL, Literal: "ignore", Line: 1, Column: 0},
 				{Type: TOKEN_SYMBOL, Literal: "the", Line: 1, Column: 7},
 				{Type: TOKEN_SYMBOL, Literal: "rest", Line: 1, Column: 11},
-				{Type: TOKEN_SEMICOLON, Literal: ";", Line: 1, Column: 13},
-				{Type: TOKEN_EOF, Literal: "", Line: 1, Column: 11},
+				{Type: TOKEN_COMMENT, Literal: "; !!!!!@#", Line: 1, Column: 16},
+				{Type: TOKEN_EOF, Literal: "", Line: 1, Column: 25},
 			},
 		},
 		{
