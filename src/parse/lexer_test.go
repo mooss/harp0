@@ -142,6 +142,14 @@ func TestLexer(t *testing.T) {
 			},
 		},
 		{
+			name:  "Unescaped newline in string",
+			input: "\"hello\n\"",
+			err: &LexicalError{
+				Token:  Token{Type: TOKEN_STRING, Literal: `hello`, Line: 1, Column: 0},
+				Reason: NewlineInString,
+			},
+		},
+		{
 			name:  "String with escaped characters",
 			input: `"hello\nworld\t\"quoted\"\\escaped\\"`,
 			expected: []Token{

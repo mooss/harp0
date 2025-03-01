@@ -37,6 +37,7 @@ const (
 	TwoDotsInFloat   LexicalErrorReason = "met a second dot while reading float"
 	NonDigitInNumber LexicalErrorReason = "met non-digit while reading number"
 	EofInString      LexicalErrorReason = "met EOF while reading string"
+	NewlineInString  LexicalErrorReason = "met unescaped newline while reading string"
 )
 
 ///////////
@@ -247,6 +248,11 @@ func (l *Lexer) readString() (string, *LexicalError) {
 		if l.current == 0 {
 			tok.Literal = l.from(start)
 			return "", lxr(tok, EofInString)
+		}
+
+		if l.current == '\n' {
+			tok.Literal = l.from(start)
+			return "", lxr(tok, NewlineInString)
 		}
 
 		if l.current == '"' {
