@@ -16,12 +16,7 @@ type LexicalError struct {
 	Token
 
 	// Reason explains what triggered the error.
-	Reason LexicalErrorReason
-}
-
-// lxr is a shortcut to build lexical errors.
-func lxr(tok Token, kind LexicalErrorReason) *LexicalError {
-	return &LexicalError{tok, kind}
+	Reason LexicalFailure
 }
 
 func (le LexicalError) Error() string {
@@ -31,13 +26,14 @@ func (le LexicalError) Error() string {
 	)
 }
 
-type LexicalErrorReason string
+// LexicalFailure describes what caused the lexer to fail.
+type LexicalFailure string
 
 const (
-	TwoDotsInFloat   LexicalErrorReason = "met a second dot while reading float"
-	NonDigitInNumber LexicalErrorReason = "met non-digit while reading number"
-	EofInString      LexicalErrorReason = "met EOF while reading string"
-	NewlineInString  LexicalErrorReason = "met unescaped newline while reading string"
+	TwoDotsInFloat   LexicalFailure = "met a second dot while reading float"
+	NonDigitInNumber LexicalFailure = "met non-digit while reading number"
+	EofInString      LexicalFailure = "met EOF while reading string"
+	NewlineInString  LexicalFailure = "met unescaped newline while reading string"
 )
 
 ///////////
@@ -76,175 +72,176 @@ func NewLexer(input string) *Lexer {
 }
 
 // forward moves the lexer to the forward position.
-func (l *Lexer) forward() {
-	if l.currentPosition >= len(l.input) { // Already at EOF.
+func (lex *Lexer) forward() {
+	if lex.currentPosition >= len(lex.input) { // Already at EOF.
 		return
 	}
 
-	l.currentPosition += l.currentWidth
-	l.column += 1
-	if l.currentPosition >= len(l.input) { // Reached EOF.
-		l.current = 0
+	lex.currentPosition += lex.currentWidth
+	lex.column += 1
+	if lex.currentPosition >= len(lex.input) { // Reached EOF.
+		lex.current = 0
 		return
 	}
 
-	l.current, l.currentWidth = utf8.DecodeRuneInString(l.input[l.currentPosition:])
+	lex.current, lex.currentWidth = utf8.DecodeRuneInString(lex.input[lex.currentPosition:])
 }
 
 // nextLine registers that the input has moved to the next line (it does not change the position).
-func (l *Lexer) nextLine() {
-	l.line++
-	l.column = -1 // -1 to ensure first column is 0.
+func (lex *Lexer) nextLine() {
+	lex.line++
+	lex.column = -1 // -1 to ensure first column is 0.
 }
 
 // peekChar return the rune of *the next byte* (not exactly the next rune).
-func (l *Lexer) peekChar() rune {
-	npos := l.currentPosition + l.currentWidth
-	if npos >= len(l.input) {
+func (lex *Lexer) peekChar() rune {
+	npos := lex.currentPosition + lex.currentWidth
+	if npos >= len(lex.input) {
 		return 0
 	}
 
-	return rune(l.input[npos])
+	return rune(lex.input[npos])
 }
 
 // NextToken produces the next token by moving the lexer forward.
-func (l *Lexer) NextToken() (Token, *LexicalError) {
+func (lex *Lexer) NextToken() (Token, *LexicalError) {
 	var tok Token
 
-	l.skipWhitespace()
+	lex.skipWhitespace()
 
-	switch l.current {
+	switch lex.current {
 	case '(':
-		tok = l.monotok(TOKEN_LPAREN)
+		tok = lex.monotok(TOKEN_LPAREN)
 	case ')':
-		tok = l.monotok(TOKEN_RPAREN)
+		tok = lex.monotok(TOKEN_RPAREN)
 	case '{':
-		tok = l.monotok(TOKEN_LBRACE)
+		tok = lex.monotok(TOKEN_LBRACE)
 	case '}':
-		tok = l.monotok(TOKEN_RBRACE)
+		tok = lex.monotok(TOKEN_RBRACE)
 	case '[':
-		tok = l.monotok(TOKEN_LBRACKET)
+		tok = lex.monotok(TOKEN_LBRACKET)
 	case ']':
-		tok = l.monotok(TOKEN_RBRACKET)
+		tok = lex.monotok(TOKEN_RBRACKET)
 	case '.':
-		if isDigit(l.peekChar()) { // Float < 1.
-			return l.readNumber()
+		if isDigit(lex.peekChar()) { // Float < 1.
+			return lex.read(readNumber, TOKEN_INT)
 		}
 
-		tok = l.monotok(TOKEN_DOT)
+		tok = lex.monotok(TOKEN_DOT)
 	case ':':
-		tok = l.monotok(TOKEN_COLON)
+		tok = lex.monotok(TOKEN_COLON)
 	case '|':
-		tok = l.monotok(TOKEN_PIPE)
+		tok = lex.monotok(TOKEN_PIPE)
 	case '\'':
-		tok = l.monotok(TOKEN_QUOTE)
+		tok = lex.monotok(TOKEN_QUOTE)
 	case '_':
-		tok = l.monotok(TOKEN_UNDER)
+		tok = lex.monotok(TOKEN_UNDER)
 	case '"':
-		return l.readString()
+		return lex.read(readString, TOKEN_STRING)
 	case ';':
-		return l.readComment()
+		return lex.read(readComment, TOKEN_COMMENT)
 	case 0:
-		tok.Line = l.line
-		tok.Column = l.column
+		tok.Line = lex.line
+		tok.Column = lex.column
 		tok.Literal = ""
 		tok.Type = TOKEN_EOF
 	default:
-		if canStartSymbol(l.current) {
-			return l.readSymbol()
-		} else if isDigit(l.current) {
-			return l.readNumber()
+		if canStartSymbol(lex.current) {
+			return lex.read(readSymbol, TOKEN_SYMBOL)
+		} else if isDigit(lex.current) {
+			return lex.read(readNumber, TOKEN_INT)
 		} else {
-			tok = l.monotok(TOKEN_ILLEGAL)
+			tok = lex.monotok(TOKEN_ILLEGAL)
 		}
 	}
 
-	l.forward()
+	// The current character is a part of the returned token, so it must be skipped.
+	lex.forward()
+
 	return tok, nil
 }
 
 /////////////
 // Readers //
 
-func (l *Lexer) readComment() (Token, *LexicalError) {
-	tok, start := l.start(TOKEN_COMMENT)
+// reader defines a function iterating forward in a lexer to build a token.
+type reader func(*Lexer, *Token) LexicalFailure
 
-	for l.current != '\n' && l.current != 0 {
-		l.forward()
+// read takes a reader, does boilerplate pre and post processing and builds a token.
+func (lex *Lexer) read(
+	fun reader, typ TokenType,
+) (Token, *LexicalError) {
+	tok := Token{
+		Type:   typ,
+		Line:   lex.line,
+		Column: lex.column,
 	}
+	start := lex.currentPosition
 
-	tok.Literal = l.from(start)
+	fail := fun(lex, &tok)
+	tok.Literal = lex.input[start:lex.currentPosition]
 
-	if l.current == '\n' {
-		l.nextLine()
-		l.forward()
+	if fail != "" {
+		return Token{}, &LexicalError{tok, fail}
 	}
 
 	return tok, nil
 }
 
-func (l *Lexer) readSymbol() (Token, *LexicalError) {
-	tok, start := l.start(TOKEN_SYMBOL)
-
-	for canStartSymbol(l.current) || isDigit(l.current) {
-		l.forward()
+func readComment(lex *Lexer, tok *Token) LexicalFailure {
+	for lex.current != '\n' && lex.current != 0 {
+		lex.forward()
 	}
 
-	tok.Literal = l.from(start)
-	return tok, nil
+	return ""
 }
 
-func (l *Lexer) readNumber() (Token, *LexicalError) {
-	tok, start := l.start(TOKEN_INT)
-
+func readNumber(lex *Lexer, tok *Token) LexicalFailure {
 	for {
-		if l.current == '.' {
+		switch run := lex.current; {
+		case run == '.':
 			// One dot is a float, two dots is an error.
 			if tok.Type == TOKEN_FLOAT {
-				tok.Literal = l.from(start)
-				return Token{}, lxr(tok, TwoDotsInFloat)
+				return TwoDotsInFloat
 			}
 
 			tok.Type = TOKEN_FLOAT
-		} else if isStoprune(l.current) {
-			break
-		} else if !isDigit(l.current) {
-			tok.Literal = l.from(start)
-			return Token{}, lxr(tok, NonDigitInNumber)
+		case isStoprune(run):
+			return ""
+		case !isDigit(run):
+			return NonDigitInNumber
 		}
 
-		l.forward()
+		lex.forward()
 	}
-
-	tok.Literal = l.from(start)
-	return tok, nil
 }
 
-func (l *Lexer) readString() (Token, *LexicalError) {
-	tok, start := l.start(TOKEN_STRING)
-	l.forward() // Consume opening double quote.
+func readString(lex *Lexer, tok *Token) LexicalFailure {
+	lex.forward() // Consume opening double quote.
 
-loop:
 	for {
-		switch l.current {
+		switch lex.current {
 		case 0:
-			tok.Literal = l.from(start)
-			return Token{}, lxr(tok, EofInString)
+			return EofInString
 		case '\n':
-			tok.Literal = l.from(start)
-			return Token{}, lxr(tok, NewlineInString)
+			return NewlineInString
 		case '"':
-			l.forward()
-			break loop
+			lex.forward()
+			return ""
 		case '\\': // Handle escape sequences.
-			l.forward()
+			lex.forward()
 		}
 
-		l.forward()
+		lex.forward()
+	}
+}
+
+func readSymbol(lex *Lexer, tok *Token) LexicalFailure {
+	for canStartSymbol(lex.current) || isDigit(lex.current) {
+		lex.forward()
 	}
 
-	tok.Literal = l.from(start)
-	return tok, nil
+	return ""
 }
 
 /////////////////////
@@ -271,38 +268,26 @@ func isStoprune(run rune) bool {
 ///////////////////////
 // Utility functions //
 
-// Start returns a token initialized at the current line, as well as the current position.
-func (l *Lexer) start(tokenType TokenType) (Token, int) {
-	return Token{
-		Type:   tokenType,
-		Line:   l.line,
-		Column: l.column,
-	}, l.currentPosition
-}
-
 // monotok is a shorcut that builds single-rune tokens.
-func (l *Lexer) monotok(tokenType TokenType) Token {
+func (lex *Lexer) monotok(tokenType TokenType) Token {
 	return Token{
 		Type:    tokenType,
-		Literal: string(l.current),
-		Line:    l.line,
-		Column:  l.column,
+		Literal: string(lex.current),
+		Line:    lex.line,
+		Column:  lex.column,
 	}
 }
 
-func (l *Lexer) skipWhitespace() {
+func (lex *Lexer) skipWhitespace() {
 	for {
-		switch l.current {
+		switch lex.current {
 		case ' ', '\t', '\r':
-			l.forward()
+			lex.forward()
 		case '\n':
-			l.nextLine()
-			l.forward()
+			lex.nextLine()
+			lex.forward()
 		default:
 			return
 		}
 	}
 }
-
-// from returns the substring between start and the current position.
-func (l *Lexer) from(start int) string { return l.input[start:l.currentPosition] }
