@@ -60,7 +60,7 @@ func TestLexer(t *testing.T) {
 			},
 		},
 		{
-			name:  "Mixed symbols and numbers",
+			name:  "Mixed symbols and numbers", // Broken, DOT needs to be replaced with DOTSYMBOL.
 			input: "a123 b45.67",
 			expected: []Token{
 				{Type: TOKEN_SYMBOL, Literal: "a123", Line: 1, Column: 0},
@@ -168,6 +168,38 @@ func TestLexer(t *testing.T) {
 			},
 		},
 		{
+			name:  "Float without leading zero",
+			input: ".123",
+			expected: []Token{
+				{Type: TOKEN_FLOAT, Literal: ".123", Line: 1, Column: 0},
+				{Type: TOKEN_EOF, Literal: "", Line: 1, Column: 4},
+			},
+		},
+		{
+			name:  "Multiple dots in float (invalid)",
+			input: "1.2.3",
+			err: &LexicalError{
+				Token: Token{Type: TOKEN_FLOAT, Literal: "1.2", Line: 1, Column: 0},
+				Kind:  BadNumber,
+			},
+		},
+		{
+			name:  "Int then non-digit",
+			input: "1abc",
+			err: &LexicalError{
+				Token: Token{Type: TOKEN_INT, Literal: "1", Line: 1, Column: 0},
+				Kind:  BadNumber,
+			},
+		},
+		{
+			name:  "Floats x.y float then non-digit",
+			input: "1.0abc",
+			err: &LexicalError{
+				Token: Token{Type: TOKEN_FLOAT, Literal: "1.0", Line: 1, Column: 0},
+				Kind:  BadNumber,
+			},
+		},
+		{
 			name:  "Zero width characters",
 			input: "a\u200b\u200cb",
 			expected: []Token{
@@ -207,7 +239,8 @@ func TestLexer(t *testing.T) {
 				}
 
 				if err == nil || *err != *tt.err {
-					t.Errorf("expected error %+v, got %+v", *err, *tt.err)
+					t.Errorf("expected %+v[%s], got %+v[%s]",
+						tt.err.Token, tt.err.Kind, err.Token, err.Kind)
 				}
 
 				return

@@ -28,6 +28,7 @@ type LexicalErrorKind string
 
 const (
 	UnterminatedString LexicalErrorKind = "unterminated string"
+	BadNumber          LexicalErrorKind = "bad number"
 )
 
 ///////////
@@ -117,6 +118,10 @@ func (l *Lexer) NextToken() (Token, *LexicalError) {
 	case ']':
 		tok = l.monotok(TOKEN_RBRACKET)
 	case '.':
+		if isDigit(l.peekChar()) { // Float < 1.
+			return l.readNumber()
+		}
+
 		tok = l.monotok(TOKEN_DOT)
 	case ':':
 		tok = l.monotok(TOKEN_COLON)
@@ -154,10 +159,7 @@ func (l *Lexer) NextToken() (Token, *LexicalError) {
 			tok.Type = lookupSymbol(tok.Literal)
 			return tok, nil
 		} else if isDigit(l.current) {
-			tok.Line = l.line
-			tok.Column = l.column
-			tok.Type, tok.Literal = l.readNumber()
-			return tok, nil
+			return l.readNumber()
 		} else {
 			tok = l.monotok(TOKEN_ILLEGAL)
 		}
@@ -165,33 +167,6 @@ func (l *Lexer) NextToken() (Token, *LexicalError) {
 
 	l.forward()
 	return tok, nil
-}
-
-// monotok is a shorcut that builds single-rune tokens.
-func (l *Lexer) monotok(tokenType TokenType) Token {
-	return Token{
-		Type:    tokenType,
-		Literal: string(l.current),
-		Line:    l.line,
-		Column:  l.column,
-	}
-}
-
-//////////////
-// Skippers //
-
-func (l *Lexer) skipWhitespace() {
-	for {
-		switch l.current {
-		case ' ', '\t', '\r':
-			l.forward()
-		case '\n':
-			l.nextLine()
-			l.forward()
-		default:
-			return
-		}
-	}
 }
 
 /////////////
@@ -220,23 +195,34 @@ func (l *Lexer) readSymbol() string {
 	return l.input[position:l.currentPosition]
 }
 
-func (l *Lexer) readNumber() (TokenType, string) {
-	tokenType := TOKEN_INT
+func (l *Lexer) readNumber() (Token, *LexicalError) {
+	tok := Token{
+		Type:   TOKEN_INT,
+		Line:   l.line,
+		Column: l.column,
+	}
 	position := l.currentPosition
 
-	for isDigit(l.current) {
+	for { // One dot is a float, two dots is an error.
+		if l.current == '.' {
+			if tok.Type == TOKEN_FLOAT {
+				tok.Literal = l.from(position)
+				return Token{}, &LexicalError{tok, BadNumber}
+			}
+
+			tok.Type = TOKEN_FLOAT
+		} else if isStoprune(l.current) {
+			break
+		} else if !isDigit(l.current) {
+			tok.Literal = l.from(position)
+			return Token{}, &LexicalError{tok, BadNumber}
+		}
+
 		l.forward()
 	}
 
-	if l.current == '.' && isDigit(l.peekChar()) {
-		tokenType = TOKEN_FLOAT
-		l.forward() // consume the dot
-		for isDigit(l.current) {
-			l.forward()
-		}
-	}
-
-	return tokenType, l.input[position:l.currentPosition]
+	tok.Literal = l.from(position)
+	return tok, nil
 }
 
 func (l *Lexer) readString() (string, *LexicalError) {
@@ -251,7 +237,7 @@ func (l *Lexer) readString() (string, *LexicalError) {
 
 	for {
 		if l.current == 0 {
-			tok.Literal = l.input[start:l.currentPosition]
+			tok.Literal = l.from(start)
 			return "", &LexicalError{tok, UnterminatedString}
 		}
 
@@ -266,7 +252,7 @@ func (l *Lexer) readString() (string, *LexicalError) {
 		l.forward()
 	}
 
-	str := l.input[start:l.currentPosition]
+	str := l.from(start)
 	l.forward() // Consume closing ".
 
 	return str, nil
@@ -285,3 +271,40 @@ func canStartSymbol(run rune) bool {
 func isDigit(run rune) bool {
 	return '0' <= run && run <= '9'
 }
+
+// isStoprune returns true when given a stoprune, that is to say a rune that can validly end any
+// token and can appear right next to anything.
+// For instance, `(` is a stoprune, but `:` is not (it cannot end an int).
+func isStoprune(run rune) bool {
+	return strings.ContainsRune("()[]{} \t\r\n\000", run)
+}
+
+///////////////////////
+// Utility functions //
+
+// monotok is a shorcut that builds single-rune tokens.
+func (l *Lexer) monotok(tokenType TokenType) Token {
+	return Token{
+		Type:    tokenType,
+		Literal: string(l.current),
+		Line:    l.line,
+		Column:  l.column,
+	}
+}
+
+func (l *Lexer) skipWhitespace() {
+	for {
+		switch l.current {
+		case ' ', '\t', '\r':
+			l.forward()
+		case '\n':
+			l.nextLine()
+			l.forward()
+		default:
+			return
+		}
+	}
+}
+
+// from returns the substring between start and the current position.
+func (l *Lexer) from(start int) string { return l.input[start:l.currentPosition] }
