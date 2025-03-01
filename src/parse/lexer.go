@@ -167,12 +167,7 @@ func (l *Lexer) NextToken() (Token, *LexicalError) {
 // Readers //
 
 func (l *Lexer) readComment() (Token, *LexicalError) {
-	tok := Token{
-		Type:   TOKEN_COMMENT,
-		Line:   l.line,
-		Column: l.column,
-	}
-	start := l.currentPosition
+	tok, start := l.start(TOKEN_COMMENT)
 
 	for l.current != '\n' && l.current != 0 {
 		l.forward()
@@ -189,12 +184,7 @@ func (l *Lexer) readComment() (Token, *LexicalError) {
 }
 
 func (l *Lexer) readSymbol() (Token, *LexicalError) {
-	tok := Token{
-		Type:   TOKEN_SYMBOL,
-		Line:   l.line,
-		Column: l.column,
-	}
-	start := l.currentPosition
+	tok, start := l.start(TOKEN_SYMBOL)
 
 	for canStartSymbol(l.current) || isDigit(l.current) {
 		l.forward()
@@ -205,12 +195,7 @@ func (l *Lexer) readSymbol() (Token, *LexicalError) {
 }
 
 func (l *Lexer) readNumber() (Token, *LexicalError) {
-	tok := Token{
-		Type:   TOKEN_INT,
-		Line:   l.line,
-		Column: l.column,
-	}
-	start := l.currentPosition
+	tok, start := l.start(TOKEN_INT)
 
 	for {
 		if l.current == '.' {
@@ -236,31 +221,22 @@ func (l *Lexer) readNumber() (Token, *LexicalError) {
 }
 
 func (l *Lexer) readString() (Token, *LexicalError) {
-	tok := Token{
-		Type:   TOKEN_STRING,
-		Line:   l.line,
-		Column: l.column,
-	}
-
+	tok, start := l.start(TOKEN_STRING)
 	l.forward() // Consume opening double quote.
-	start := l.currentPosition
+	start = l.currentPosition
 
+loop:
 	for {
-		if l.current == 0 {
+		switch l.current {
+		case 0:
 			tok.Literal = l.from(start)
 			return Token{}, lxr(tok, EofInString)
-		}
-
-		if l.current == '\n' {
+		case '\n':
 			tok.Literal = l.from(start)
 			return Token{}, lxr(tok, NewlineInString)
-		}
-
-		if l.current == '"' {
-			break
-		}
-
-		if l.current == '\\' { // Handle escape sequences.
+		case '"':
+			break loop
+		case '\\': // Handle escape sequences.
 			l.forward()
 		}
 
@@ -296,6 +272,15 @@ func isStoprune(run rune) bool {
 
 ///////////////////////
 // Utility functions //
+
+// Start returns a token initialized at the current line, as well as the current position.
+func (l *Lexer) start(tokenType TokenType) (Token, int) {
+	return Token{
+		Type:   tokenType,
+		Line:   l.line,
+		Column: l.column,
+	}, l.currentPosition
+}
 
 // monotok is a shorcut that builds single-rune tokens.
 func (l *Lexer) monotok(tokenType TokenType) Token {
