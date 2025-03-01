@@ -141,20 +141,9 @@ func (l *Lexer) NextToken() (Token, *LexicalError) {
 	case '_':
 		tok = l.monotok(TOKEN_UNDER)
 	case '"':
-		var err *LexicalError
-		tok.Line = l.line
-		tok.Column = l.column
-		tok.Type = TOKEN_STRING
-		tok.Literal, err = l.readString()
-
-		if err != nil {
-			return tok, err
-		}
+		return l.readString()
 	case ';':
-		tok.Line = l.line
-		tok.Column = l.column
-		tok.Literal = l.readComment()
-		tok.Type = TOKEN_COMMENT
+		return l.readComment()
 	case 0:
 		tok.Line = l.line
 		tok.Column = l.column
@@ -162,9 +151,11 @@ func (l *Lexer) NextToken() (Token, *LexicalError) {
 		tok.Type = TOKEN_EOF
 	default:
 		if canStartSymbol(l.current) {
-			tok.Line = l.line
-			tok.Column = l.column
-			tok.Literal = l.readSymbol()
+			tok, err := l.readSymbol()
+			if err != nil {
+				return tok, err
+			}
+
 			tok.Type = lookupSymbol(tok.Literal)
 			return tok, nil
 		} else if isDigit(l.current) {
@@ -181,27 +172,42 @@ func (l *Lexer) NextToken() (Token, *LexicalError) {
 /////////////
 // Readers //
 
-func (l *Lexer) readComment() string {
-	position := l.currentPosition
+func (l *Lexer) readComment() (Token, *LexicalError) {
+	tok := Token{
+		Type:   TOKEN_COMMENT,
+		Line:   l.line,
+		Column: l.column,
+	}
+	start := l.currentPosition
+
 	for l.current != '\n' && l.current != 0 {
 		l.forward()
 	}
 
+	tok.Literal = l.from(start)
+
 	if l.current == '\n' {
-		l.nextLine() // This newline will be skipped by the next forward.
+		l.nextLine()
+		l.forward()
 	}
 
-	return l.input[position:l.currentPosition]
+	return tok, nil
 }
 
-func (l *Lexer) readSymbol() string {
-	position := l.currentPosition
+func (l *Lexer) readSymbol() (Token, *LexicalError) {
+	tok := Token{
+		Type:   TOKEN_SYMBOL,
+		Line:   l.line,
+		Column: l.column,
+	}
+	start := l.currentPosition
 
 	for canStartSymbol(l.current) || isDigit(l.current) {
 		l.forward()
 	}
 
-	return l.input[position:l.currentPosition]
+	tok.Literal = l.from(start)
+	return tok, nil
 }
 
 func (l *Lexer) readNumber() (Token, *LexicalError) {
@@ -210,12 +216,13 @@ func (l *Lexer) readNumber() (Token, *LexicalError) {
 		Line:   l.line,
 		Column: l.column,
 	}
-	position := l.currentPosition
+	start := l.currentPosition
 
-	for { // One dot is a float, two dots is an error.
+	for {
 		if l.current == '.' {
+			// One dot is a float, two dots is an error.
 			if tok.Type == TOKEN_FLOAT {
-				tok.Literal = l.from(position)
+				tok.Literal = l.from(start)
 				return Token{}, lxr(tok, TwoDotsInFloat)
 			}
 
@@ -223,18 +230,18 @@ func (l *Lexer) readNumber() (Token, *LexicalError) {
 		} else if isStoprune(l.current) {
 			break
 		} else if !isDigit(l.current) {
-			tok.Literal = l.from(position)
+			tok.Literal = l.from(start)
 			return Token{}, lxr(tok, NonDigitInNumber)
 		}
 
 		l.forward()
 	}
 
-	tok.Literal = l.from(position)
+	tok.Literal = l.from(start)
 	return tok, nil
 }
 
-func (l *Lexer) readString() (string, *LexicalError) {
+func (l *Lexer) readString() (Token, *LexicalError) {
 	tok := Token{
 		Type:   TOKEN_STRING,
 		Line:   l.line,
@@ -247,12 +254,12 @@ func (l *Lexer) readString() (string, *LexicalError) {
 	for {
 		if l.current == 0 {
 			tok.Literal = l.from(start)
-			return "", lxr(tok, EofInString)
+			return Token{}, lxr(tok, EofInString)
 		}
 
 		if l.current == '\n' {
 			tok.Literal = l.from(start)
-			return "", lxr(tok, NewlineInString)
+			return Token{}, lxr(tok, NewlineInString)
 		}
 
 		if l.current == '"' {
@@ -266,10 +273,10 @@ func (l *Lexer) readString() (string, *LexicalError) {
 		l.forward()
 	}
 
-	str := l.from(start)
-	l.forward() // Consume closing ".
+	tok.Literal = l.from(start)
+	l.forward() // Consume closing double quote.
 
-	return str, nil
+	return tok, nil
 }
 
 /////////////////////
@@ -278,7 +285,7 @@ func (l *Lexer) readString() (string, *LexicalError) {
 // canStartSymbol returns true if the given rune can start a valid symbol
 // (unicode letter, _, -, +, / or *).
 func canStartSymbol(run rune) bool {
-	return unicode.IsLetter(run) || run == '_' || run == '-' || run == '+' || run == '/' || run == '*'
+	return unicode.IsLetter(run) || strings.ContainsRune("_-+/*", run)
 }
 
 // isDigit returns true if run is an ASCII digit.
