@@ -15,20 +15,28 @@ type LexicalError struct {
 	// Token is the token that was being parsed when the error occured.
 	Token
 
-	// Kind is a short string explaining more precisely the kind of error that happened, for
-	// instance "unterminated string" or "bad number".
-	Kind LexicalErrorKind
+	// Reason explains what triggered the error.
+	Reason LexicalErrorReason
+}
+
+// lxr is a shortcut to build lexical errors.
+func lxr(tok Token, kind LexicalErrorReason) *LexicalError {
+	return &LexicalError{tok, kind}
 }
 
 func (le LexicalError) Error() string {
-	return fmt.Sprintf("lexical error at line %d column %d: %s", le.Line, le.Column, le.Kind)
+	return fmt.Sprintf(
+		"lexical error at line %d column %d: %s",
+		le.Line, le.Column, le.Reason,
+	)
 }
 
-type LexicalErrorKind string
+type LexicalErrorReason string
 
 const (
-	UnterminatedString LexicalErrorKind = "unterminated string"
-	BadNumber          LexicalErrorKind = "bad number"
+	TwoDotsInFloat   LexicalErrorReason = "met a second dot while reading float"
+	NonDigitInNumber LexicalErrorReason = "met non-digit while reading number"
+	EofInString      LexicalErrorReason = "met EOF while reading string"
 )
 
 ///////////
@@ -207,7 +215,7 @@ func (l *Lexer) readNumber() (Token, *LexicalError) {
 		if l.current == '.' {
 			if tok.Type == TOKEN_FLOAT {
 				tok.Literal = l.from(position)
-				return Token{}, &LexicalError{tok, BadNumber}
+				return Token{}, lxr(tok, TwoDotsInFloat)
 			}
 
 			tok.Type = TOKEN_FLOAT
@@ -215,7 +223,7 @@ func (l *Lexer) readNumber() (Token, *LexicalError) {
 			break
 		} else if !isDigit(l.current) {
 			tok.Literal = l.from(position)
-			return Token{}, &LexicalError{tok, BadNumber}
+			return Token{}, lxr(tok, NonDigitInNumber)
 		}
 
 		l.forward()
@@ -238,7 +246,7 @@ func (l *Lexer) readString() (string, *LexicalError) {
 	for {
 		if l.current == 0 {
 			tok.Literal = l.from(start)
-			return "", &LexicalError{tok, UnterminatedString}
+			return "", lxr(tok, EofInString)
 		}
 
 		if l.current == '"' {

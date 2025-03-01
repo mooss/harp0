@@ -137,8 +137,8 @@ func TestLexer(t *testing.T) {
 			name:  "Unterminated string",
 			input: `"hello`,
 			err: &LexicalError{
-				Token: Token{Type: TOKEN_STRING, Literal: `hello`, Line: 1, Column: 0},
-				Kind:  UnterminatedString,
+				Token:  Token{Type: TOKEN_STRING, Literal: `hello`, Line: 1, Column: 0},
+				Reason: EofInString,
 			},
 		},
 		{
@@ -179,24 +179,24 @@ func TestLexer(t *testing.T) {
 			name:  "Multiple dots in float (invalid)",
 			input: "1.2.3",
 			err: &LexicalError{
-				Token: Token{Type: TOKEN_FLOAT, Literal: "1.2", Line: 1, Column: 0},
-				Kind:  BadNumber,
+				Token:  Token{Type: TOKEN_FLOAT, Literal: "1.2", Line: 1, Column: 0},
+				Reason: TwoDotsInFloat,
 			},
 		},
 		{
 			name:  "Int then non-digit",
 			input: "1abc",
 			err: &LexicalError{
-				Token: Token{Type: TOKEN_INT, Literal: "1", Line: 1, Column: 0},
-				Kind:  BadNumber,
+				Token:  Token{Type: TOKEN_INT, Literal: "1", Line: 1, Column: 0},
+				Reason: NonDigitInNumber,
 			},
 		},
 		{
-			name:  "Floats x.y float then non-digit",
+			name:  "x.y float then non-digit",
 			input: "1.0abc",
 			err: &LexicalError{
-				Token: Token{Type: TOKEN_FLOAT, Literal: "1.0", Line: 1, Column: 0},
-				Kind:  BadNumber,
+				Token:  Token{Type: TOKEN_FLOAT, Literal: "1.0", Line: 1, Column: 0},
+				Reason: NonDigitInNumber,
 			},
 		},
 		{
@@ -239,8 +239,7 @@ func TestLexer(t *testing.T) {
 				}
 
 				if err == nil || *err != *tt.err {
-					t.Errorf("expected %+v[%s], got %+v[%s]",
-						tt.err.Token, tt.err.Kind, err.Token, err.Kind)
+					t.Errorf("expected\n> %#v\ngot\n> %#v", *tt.err, *err)
 				}
 
 				return
