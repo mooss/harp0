@@ -151,13 +151,7 @@ func (l *Lexer) NextToken() (Token, *LexicalError) {
 		tok.Type = TOKEN_EOF
 	default:
 		if canStartSymbol(l.current) {
-			tok, err := l.readSymbol()
-			if err != nil {
-				return tok, err
-			}
-
-			tok.Type = lookupSymbol(tok.Literal)
-			return tok, nil
+			return l.readSymbol()
 		} else if isDigit(l.current) {
 			return l.readNumber()
 		} else {
