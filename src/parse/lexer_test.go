@@ -37,8 +37,8 @@ func TestLexer(t *testing.T) {
 			name:  "Strings",
 			input: `"hello" "world"`,
 			expected: []Token{
-				{Type: TOKEN_STRING, Literal: "hello", Line: 1, Column: 0},
-				{Type: TOKEN_STRING, Literal: "world", Line: 1, Column: 8},
+				{Type: TOKEN_STRING, Literal: `"hello"`, Line: 1, Column: 0},
+				{Type: TOKEN_STRING, Literal: `"world"`, Line: 1, Column: 8},
 				{Type: TOKEN_EOF, Literal: "", Line: 1, Column: 15},
 			},
 		},
@@ -137,7 +137,7 @@ func TestLexer(t *testing.T) {
 			name:  "Unterminated string",
 			input: `"hello`,
 			err: &LexicalError{
-				Token:  Token{Type: TOKEN_STRING, Literal: `hello`, Line: 1, Column: 0},
+				Token:  Token{Type: TOKEN_STRING, Literal: `"hello`, Line: 1, Column: 0},
 				Reason: EofInString,
 			},
 		},
@@ -145,7 +145,7 @@ func TestLexer(t *testing.T) {
 			name:  "Unescaped newline in string",
 			input: "\"hello\n\"",
 			err: &LexicalError{
-				Token:  Token{Type: TOKEN_STRING, Literal: `hello`, Line: 1, Column: 0},
+				Token:  Token{Type: TOKEN_STRING, Literal: `"hello`, Line: 1, Column: 0},
 				Reason: NewlineInString,
 			},
 		},
@@ -153,7 +153,7 @@ func TestLexer(t *testing.T) {
 			name:  "String with escaped characters",
 			input: `"hello\nworld\t\"quoted\"\\escaped\\"`,
 			expected: []Token{
-				{Type: TOKEN_STRING, Literal: `hello\nworld\t\"quoted\"\\escaped\\`, Line: 1, Column: 0},
+				{Type: TOKEN_STRING, Literal: `"hello\nworld\t\"quoted\"\\escaped\\"`, Line: 1, Column: 0},
 				{Type: TOKEN_EOF, Literal: "", Line: 1, Column: 37},
 			},
 		},

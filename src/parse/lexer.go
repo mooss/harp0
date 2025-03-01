@@ -223,7 +223,6 @@ func (l *Lexer) readNumber() (Token, *LexicalError) {
 func (l *Lexer) readString() (Token, *LexicalError) {
 	tok, start := l.start(TOKEN_STRING)
 	l.forward() // Consume opening double quote.
-	start = l.currentPosition
 
 loop:
 	for {
@@ -235,6 +234,7 @@ loop:
 			tok.Literal = l.from(start)
 			return Token{}, lxr(tok, NewlineInString)
 		case '"':
+			l.forward()
 			break loop
 		case '\\': // Handle escape sequences.
 			l.forward()
@@ -244,8 +244,6 @@ loop:
 	}
 
 	tok.Literal = l.from(start)
-	l.forward() // Consume closing double quote.
-
 	return tok, nil
 }
 
