@@ -4,17 +4,24 @@ import (
 	"testing"
 )
 
+type expected struct {
+	Type    TokenType
+	Literal string
+	Line    int
+	Column  int
+	Reason  LexicalFailure
+}
+
 func TestLexer(t *testing.T) {
 	tests := []struct {
 		name     string
 		input    string
-		expected []Token
-		err      *LexicalError
+		expected []expected // Empty reason means no error and the token fields are used instead.
 	}{
 		{
 			name:  "Basic symbols",
 			input: "def let fun struct lambda",
-			expected: []Token{
+			expected: []expected{
 				{Type: TOKEN_SYMBOL, Literal: "def", Line: 1, Column: 0},
 				{Type: TOKEN_SYMBOL, Literal: "let", Line: 1, Column: 4},
 				{Type: TOKEN_SYMBOL, Literal: "fun", Line: 1, Column: 8},
@@ -26,7 +33,7 @@ func TestLexer(t *testing.T) {
 		{
 			name:  "Numbers",
 			input: "123 45.67 89.0",
-			expected: []Token{
+			expected: []expected{
 				{Type: TOKEN_INT, Literal: "123", Line: 1, Column: 0},
 				{Type: TOKEN_FLOAT, Literal: "45.67", Line: 1, Column: 4},
 				{Type: TOKEN_FLOAT, Literal: "89.0", Line: 1, Column: 10},
@@ -36,7 +43,7 @@ func TestLexer(t *testing.T) {
 		{
 			name:  "Strings",
 			input: `"hello" "world"`,
-			expected: []Token{
+			expected: []expected{
 				{Type: TOKEN_STRING, Literal: `"hello"`, Line: 1, Column: 0},
 				{Type: TOKEN_STRING, Literal: `"world"`, Line: 1, Column: 8},
 				{Type: TOKEN_EOF, Literal: "", Line: 1, Column: 15},
@@ -45,7 +52,7 @@ func TestLexer(t *testing.T) {
 		{
 			name:  "Comment at start of line",
 			input: "; This is a comment\n123",
-			expected: []Token{
+			expected: []expected{
 				{Type: TOKEN_COMMENT, Literal: "; This is a comment", Line: 1, Column: 0},
 				{Type: TOKEN_INT, Literal: "123", Line: 2, Column: 0},
 				{Type: TOKEN_EOF, Literal: "", Line: 2, Column: 3},
@@ -54,7 +61,7 @@ func TestLexer(t *testing.T) {
 		{
 			name:  "Symbols with special characters",
 			input: "a-b_c/d*e",
-			expected: []Token{
+			expected: []expected{
 				{Type: TOKEN_SYMBOL, Literal: "a-b_c/d*e", Line: 1, Column: 0},
 				{Type: TOKEN_EOF, Literal: "", Line: 1, Column: 9},
 			},
@@ -62,7 +69,7 @@ func TestLexer(t *testing.T) {
 		{
 			name:  "Method call",
 			input: "obj.method(arg)",
-			expected: []Token{
+			expected: []expected{
 				{Type: TOKEN_SYMBOL, Literal: "obj", Line: 1, Column: 0},
 				{Type: TOKEN_DOT, Literal: ".", Line: 1, Column: 3},
 				{Type: TOKEN_SYMBOL, Literal: "method", Line: 1, Column: 4},
@@ -73,20 +80,20 @@ func TestLexer(t *testing.T) {
 			},
 		},
 		{
-			name:  "Mixed symbols and numbers", // Broken, DOT needs to be replaced with DOTSYMBOL.
+			name:  "Mixed symbols and numbers",
 			input: "a123 b45.67",
-			expected: []Token{
+			expected: []expected{
 				{Type: TOKEN_SYMBOL, Literal: "a123", Line: 1, Column: 0},
-				{Type: TOKEN_SYMBOL, Literal: "b45", Line: 1, Column: 5},
-				{Type: TOKEN_DOT, Literal: ".", Line: 1, Column: 8},
-				{Type: TOKEN_INT, Literal: "67", Line: 1, Column: 9},
+				{Type: TOKEN_SYMBOL, Literal: "b45", Line: 1, Column: 5,
+					Reason: InvalidAfterSymbol + ": string(.6) hex(2e36)"},
+				{Type: TOKEN_FLOAT, Literal: ".67", Line: 1, Column: 8},
 				{Type: TOKEN_EOF, Literal: "", Line: 1, Column: 11},
 			},
 		},
 		{
 			name:  "Parens and braces",
 			input: "(a [b] {c})",
-			expected: []Token{
+			expected: []expected{
 				{Type: TOKEN_LPAREN, Literal: "(", Line: 1, Column: 0},
 				{Type: TOKEN_SYMBOL, Literal: "a", Line: 1, Column: 1},
 				{Type: TOKEN_LBRACKET, Literal: "[", Line: 1, Column: 3},
@@ -102,7 +109,7 @@ func TestLexer(t *testing.T) {
 		{
 			name:  "Special characters",
 			input: ". : | ' _",
-			expected: []Token{
+			expected: []expected{
 				{Type: TOKEN_DOT, Literal: ".", Line: 1, Column: 0},
 				{Type: TOKEN_COLON, Literal: ":", Line: 1, Column: 2},
 				{Type: TOKEN_PIPE, Literal: "|", Line: 1, Column: 4},
@@ -114,7 +121,7 @@ func TestLexer(t *testing.T) {
 		{
 			name:  "Comment at end of line",
 			input: "ignore the rest ; !!!!!@#",
-			expected: []Token{
+			expected: []expected{
 				{Type: TOKEN_SYMBOL, Literal: "ignore", Line: 1, Column: 0},
 				{Type: TOKEN_SYMBOL, Literal: "the", Line: 1, Column: 7},
 				{Type: TOKEN_SYMBOL, Literal: "rest", Line: 1, Column: 11},
@@ -125,7 +132,7 @@ func TestLexer(t *testing.T) {
 		{
 			name:  "Illegal characters",
 			input: "!@#",
-			expected: []Token{
+			expected: []expected{
 				{Type: TOKEN_ILLEGAL, Literal: "!", Line: 1, Column: 0},
 				{Type: TOKEN_ILLEGAL, Literal: "@", Line: 1, Column: 1},
 				{Type: TOKEN_ILLEGAL, Literal: "#", Line: 1, Column: 2},
@@ -135,37 +142,41 @@ func TestLexer(t *testing.T) {
 		{
 			name:  "Empty input",
 			input: "",
-			expected: []Token{
+			expected: []expected{
 				{Type: TOKEN_EOF, Literal: "", Line: 1, Column: 0},
 			},
 		},
 		{
 			name:  "Whitespace",
 			input: " \t\n ",
-			expected: []Token{
+			expected: []expected{
 				{Type: TOKEN_EOF, Literal: "", Line: 2, Column: 1},
 			},
 		},
 		{
 			name:  "Unterminated string",
 			input: `"hello`,
-			err: &LexicalError{
-				Token:  Token{Type: TOKEN_STRING, Literal: `"hello`, Line: 1, Column: 0},
-				Reason: EofInString,
+			expected: []expected{
+				{Type: TOKEN_STRING, Literal: `"hello`, Line: 1, Column: 0,
+					Reason: EofInString},
+				{Type: TOKEN_EOF, Literal: "", Line: 1, Column: 6},
 			},
 		},
 		{
 			name:  "Unescaped newline in string",
 			input: "\"hello\n\"",
-			err: &LexicalError{
-				Token:  Token{Type: TOKEN_STRING, Literal: `"hello`, Line: 1, Column: 0},
-				Reason: NewlineInString,
+			expected: []expected{
+				{Type: TOKEN_STRING, Literal: `"hello`, Line: 1, Column: 0,
+					Reason: NewlineInString},
+				{Type: TOKEN_STRING, Literal: `"`, Line: 2, Column: 0,
+					Reason: EofInString},
+				{Type: TOKEN_EOF, Literal: "", Line: 2, Column: 1},
 			},
 		},
 		{
 			name:  "String with escaped characters",
 			input: `"hello\nworld\t\"quoted\"\\escaped\\"`,
-			expected: []Token{
+			expected: []expected{
 				{Type: TOKEN_STRING, Literal: `"hello\nworld\t\"quoted\"\\escaped\\"`, Line: 1, Column: 0},
 				{Type: TOKEN_EOF, Literal: "", Line: 1, Column: 37},
 			},
@@ -173,7 +184,7 @@ func TestLexer(t *testing.T) {
 		{
 			name:  "Unicode characters",
 			input: "你好世界 ; This is a comment with Unicode: こんにちは",
-			expected: []Token{
+			expected: []expected{
 				{Type: TOKEN_SYMBOL, Literal: "你好世界", Line: 1, Column: 0},
 				{Type: TOKEN_COMMENT, Literal: "; This is a comment with Unicode: こんにちは", Line: 1, Column: 5},
 				{Type: TOKEN_EOF, Literal: "", Line: 1, Column: 44},
@@ -182,7 +193,7 @@ func TestLexer(t *testing.T) {
 		{
 			name:  "Long numbers",
 			input: "12345678901234567890 1234567890.1234567890",
-			expected: []Token{
+			expected: []expected{
 				{Type: TOKEN_INT, Literal: "12345678901234567890", Line: 1, Column: 0},
 				{Type: TOKEN_FLOAT, Literal: "1234567890.1234567890", Line: 1, Column: 21},
 				{Type: TOKEN_EOF, Literal: "", Line: 1, Column: 42},
@@ -191,7 +202,7 @@ func TestLexer(t *testing.T) {
 		{
 			name:  "Float without leading zero",
 			input: ".123",
-			expected: []Token{
+			expected: []expected{
 				{Type: TOKEN_FLOAT, Literal: ".123", Line: 1, Column: 0},
 				{Type: TOKEN_EOF, Literal: "", Line: 1, Column: 4},
 			},
@@ -199,31 +210,37 @@ func TestLexer(t *testing.T) {
 		{
 			name:  "Multiple dots in float (invalid)",
 			input: "1.2.3",
-			err: &LexicalError{
-				Token:  Token{Type: TOKEN_FLOAT, Literal: "1.2", Line: 1, Column: 0},
-				Reason: TwoDotsInFloat,
+			expected: []expected{
+				{Type: TOKEN_FLOAT, Literal: "1.2", Line: 1, Column: 0,
+					Reason: TwoDotsInFloat},
+				{Type: TOKEN_FLOAT, Literal: ".3", Line: 1, Column: 3},
+				{Type: TOKEN_EOF, Literal: "", Line: 1, Column: 5},
 			},
 		},
 		{
 			name:  "Int then non-digit",
 			input: "1abc",
-			err: &LexicalError{
-				Token:  Token{Type: TOKEN_INT, Literal: "1", Line: 1, Column: 0},
-				Reason: NonDigitInNumber,
+			expected: []expected{
+				{Type: TOKEN_INT, Literal: "1", Line: 1, Column: 0,
+					Reason: NonDigitInNumber},
+				{Type: TOKEN_SYMBOL, Literal: "abc", Line: 1, Column: 1},
+				{Type: TOKEN_EOF, Literal: "", Line: 1, Column: 4},
 			},
 		},
 		{
 			name:  "x.y float then non-digit",
 			input: "1.0abc",
-			err: &LexicalError{
-				Token:  Token{Type: TOKEN_FLOAT, Literal: "1.0", Line: 1, Column: 0},
-				Reason: NonDigitInNumber,
+			expected: []expected{
+				{Type: TOKEN_FLOAT, Literal: "1.0", Line: 1, Column: 0,
+					Reason: NonDigitInNumber},
+				{Type: TOKEN_SYMBOL, Literal: "abc", Line: 1, Column: 3},
+				{Type: TOKEN_EOF, Literal: "", Line: 1, Column: 6},
 			},
 		},
 		{
 			name:  "Zero width characters",
 			input: "a \u200b\u200cb",
-			expected: []Token{
+			expected: []expected{
 				{Type: TOKEN_SYMBOL, Literal: "a", Line: 1, Column: 0},
 				{Type: TOKEN_ILLEGAL, Literal: "\u200b", Line: 1, Column: 2},
 				{Type: TOKEN_ILLEGAL, Literal: "\u200c", Line: 1, Column: 3},
@@ -234,7 +251,7 @@ func TestLexer(t *testing.T) {
 		{
 			name:  "BOM character", // Byte order mark, weird unicode thingie.
 			input: "\ufeffabc",
-			expected: []Token{
+			expected: []expected{
 				{Type: TOKEN_ILLEGAL, Literal: "\ufeff", Line: 1, Column: 0},
 				{Type: TOKEN_SYMBOL, Literal: "abc", Line: 1, Column: 1},
 				{Type: TOKEN_EOF, Literal: "", Line: 1, Column: 4},
@@ -243,17 +260,21 @@ func TestLexer(t *testing.T) {
 		{
 			name:  "Symbol followed by |",
 			input: "lost|",
-			err: &LexicalError{
-				Token:  Token{Type: TOKEN_SYMBOL, Literal: "lost", Line: 1, Column: 0},
-				Reason: InvalidAfterSymbol + ": string(|) hex(7c)",
+			expected: []expected{
+				{Type: TOKEN_SYMBOL, Literal: "lost", Line: 1, Column: 0,
+					Reason: InvalidAfterSymbol + ": string(|) hex(7c)"},
+				{Type: TOKEN_PIPE, Literal: "|", Line: 1, Column: 4},
+				{Type: TOKEN_EOF, Literal: "", Line: 1, Column: 5},
 			},
 		},
 		{
 			name:  "Symbol followed by .1",
 			input: "lost.1",
-			err: &LexicalError{
-				Token:  Token{Type: TOKEN_SYMBOL, Literal: "lost", Line: 1, Column: 0},
-				Reason: InvalidAfterSymbol + ": string(.1) hex(2e31)",
+			expected: []expected{
+				{Type: TOKEN_SYMBOL, Literal: "lost", Line: 1, Column: 0,
+					Reason: InvalidAfterSymbol + ": string(.1) hex(2e31)"},
+				{Type: TOKEN_FLOAT, Literal: ".1", Line: 1, Column: 4},
+				{Type: TOKEN_EOF, Literal: "", Line: 1, Column: 6},
 			},
 		},
 	}
@@ -262,35 +283,34 @@ func TestLexer(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			lexer := NewLexer(tt.input)
 
-			if tt.err != nil {
-				var (
-					err *LexicalError
-					tok Token
-				)
+			for _, exp := range tt.expected {
+				expTok := Token{exp.Type, exp.Literal, exp.Line, exp.Column}
+				expFail := exp.Reason
+				gotFail := LexicalFailure("")
+				gotTok, err := lexer.NextToken()
 
-				for {
-					tok, err = lexer.NextToken()
-					if err != nil || tok.Type == TOKEN_EOF {
-						break
-					}
+				if expFail == "" {
+					expFail = "<nil>"
+				}
+				if err == nil {
+					gotFail = "<nil>"
+				} else {
+					gotFail = err.Reason
+					gotTok = err.Token
 				}
 
-				if err == nil || *err != *tt.err {
-					t.Errorf("expected\n> %#v\ngot\n> %#v", *tt.err, *err)
+				if expFail != gotFail {
+					t.Errorf("expected failure\n> %s\n> got %s", expFail, gotFail)
 				}
-
-				return
+				if expTok != gotTok {
+					t.Errorf("expected %+v, got %+v", expTok, gotTok)
+				}
 			}
 
-			for _, expected := range tt.expected {
-				tok, err := lexer.NextToken()
-				if err != nil {
-					t.Fatalf("unexpected error: %v", err)
-				}
-
-				if tok != expected {
-					t.Errorf("expected %+v, got %+v", expected, tok)
-				}
+			// Last expected token must be EOF (to be sure that the whole sentence is tested).
+			lastExp := tt.expected[len(tt.expected)-1]
+			if lastExp.Type != TOKEN_EOF {
+				t.Errorf("last expected token type must be EOF")
 			}
 		})
 	}
