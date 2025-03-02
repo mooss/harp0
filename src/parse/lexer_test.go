@@ -44,8 +44,8 @@ func TestLexer(t *testing.T) {
 			name:  "Strings",
 			input: `"hello" "world"`,
 			expected: []expected{
-				{Type: TOKEN_STRING, Literal: `"hello"`, Line: 1, Column: 0},
-				{Type: TOKEN_STRING, Literal: `"world"`, Line: 1, Column: 8},
+				{Type: TOKEN_DQSTRING, Literal: `"hello"`, Line: 1, Column: 0},
+				{Type: TOKEN_DQSTRING, Literal: `"world"`, Line: 1, Column: 8},
 				{Type: TOKEN_EOF, Literal: "", Line: 1, Column: 15},
 			},
 		},
@@ -85,7 +85,7 @@ func TestLexer(t *testing.T) {
 			expected: []expected{
 				{Type: TOKEN_SYMBOL, Literal: "a123", Line: 1, Column: 0},
 				{Type: TOKEN_SYMBOL, Literal: "b45", Line: 1, Column: 5,
-					Reason: InvalidAfterSymbol + ": string(.6) hex(2e36)"},
+					Reason: InvalidAfterSymbol.WithStrhex(".6")},
 				{Type: TOKEN_FLOAT, Literal: ".67", Line: 1, Column: 8},
 				{Type: TOKEN_EOF, Literal: "", Line: 1, Column: 11},
 			},
@@ -157,7 +157,7 @@ func TestLexer(t *testing.T) {
 			name:  "Unterminated string",
 			input: `"hello`,
 			expected: []expected{
-				{Type: TOKEN_STRING, Literal: `"hello`, Line: 1, Column: 0,
+				{Type: TOKEN_DQSTRING, Literal: `"hello`, Line: 1, Column: 0,
 					Reason: EofInString},
 				{Type: TOKEN_EOF, Literal: "", Line: 1, Column: 6},
 			},
@@ -166,9 +166,9 @@ func TestLexer(t *testing.T) {
 			name:  "Unescaped newline in string",
 			input: "\"hello\n\"",
 			expected: []expected{
-				{Type: TOKEN_STRING, Literal: `"hello`, Line: 1, Column: 0,
+				{Type: TOKEN_DQSTRING, Literal: `"hello`, Line: 1, Column: 0,
 					Reason: NewlineInString},
-				{Type: TOKEN_STRING, Literal: `"`, Line: 2, Column: 0,
+				{Type: TOKEN_DQSTRING, Literal: `"`, Line: 2, Column: 0,
 					Reason: EofInString},
 				{Type: TOKEN_EOF, Literal: "", Line: 2, Column: 1},
 			},
@@ -177,7 +177,7 @@ func TestLexer(t *testing.T) {
 			name:  "String with escaped characters",
 			input: `"hello\nworld\t\"quoted\"\\escaped\\"`,
 			expected: []expected{
-				{Type: TOKEN_STRING, Literal: `"hello\nworld\t\"quoted\"\\escaped\\"`, Line: 1, Column: 0},
+				{Type: TOKEN_DQSTRING, Literal: `"hello\nworld\t\"quoted\"\\escaped\\"`, Line: 1, Column: 0},
 				{Type: TOKEN_EOF, Literal: "", Line: 1, Column: 37},
 			},
 		},
@@ -262,7 +262,7 @@ func TestLexer(t *testing.T) {
 			input: "lost|",
 			expected: []expected{
 				{Type: TOKEN_SYMBOL, Literal: "lost", Line: 1, Column: 0,
-					Reason: InvalidAfterSymbol + ": string(|) hex(7c)"},
+					Reason: InvalidAfterSymbol.WithStrhex("|")},
 				{Type: TOKEN_PIPE, Literal: "|", Line: 1, Column: 4},
 				{Type: TOKEN_EOF, Literal: "", Line: 1, Column: 5},
 			},
@@ -272,7 +272,7 @@ func TestLexer(t *testing.T) {
 			input: "lost.1",
 			expected: []expected{
 				{Type: TOKEN_SYMBOL, Literal: "lost", Line: 1, Column: 0,
-					Reason: InvalidAfterSymbol + ": string(.1) hex(2e31)"},
+					Reason: InvalidAfterSymbol.WithStrhex(".1")},
 				{Type: TOKEN_FLOAT, Literal: ".1", Line: 1, Column: 4},
 				{Type: TOKEN_EOF, Literal: "", Line: 1, Column: 6},
 			},
@@ -281,7 +281,7 @@ func TestLexer(t *testing.T) {
 			name:  "Empty string",
 			input: `""`,
 			expected: []expected{
-				{Type: TOKEN_STRING, Literal: `""`, Line: 1, Column: 0},
+				{Type: TOKEN_DQSTRING, Literal: `""`, Line: 1, Column: 0},
 				{Type: TOKEN_EOF, Literal: "", Line: 1, Column: 2},
 			},
 		},
@@ -289,7 +289,7 @@ func TestLexer(t *testing.T) {
 			name:  "String with only whitespace",
 			input: `" \t\r\n "`,
 			expected: []expected{
-				{Type: TOKEN_STRING, Literal: `" \t\r\n "`, Line: 1, Column: 0},
+				{Type: TOKEN_DQSTRING, Literal: `" \t\r\n "`, Line: 1, Column: 0},
 				{Type: TOKEN_EOF, Literal: "", Line: 1, Column: 10},
 			},
 		},
@@ -297,7 +297,7 @@ func TestLexer(t *testing.T) {
 			name:  "Dot followed by non-digit, non-symbol start",
 			input: ".:",
 			expected: []expected{
-				{Type: TOKEN_DOT, Literal: ".", Line: 1, Column: 0, Reason: "BROKEN!!!, replace TOKEN_DOT by TOKEN_DOTSYMBOL"},
+				{Type: TOKEN_DOT, Literal: ".", Line: 1, Column: 0},
 				{Type: TOKEN_COLON, Literal: ":", Line: 1, Column: 1},
 				{Type: TOKEN_EOF, Literal: "", Line: 1, Column: 2},
 			},
@@ -337,7 +337,7 @@ func TestLexer(t *testing.T) {
 			name:  "More escaped characters in string",
 			input: `"\\ \\\r \b \f \v \040 \x41"`,
 			expected: []expected{
-				{Type: TOKEN_STRING, Literal: `"\\ \\\r \b \f \v \040 \x41"`, Line: 1, Column: 0},
+				{Type: TOKEN_DQSTRING, Literal: `"\\ \\\r \b \f \v \040 \x41"`, Line: 1, Column: 0},
 				{Type: TOKEN_EOF, Literal: "", Line: 1, Column: 28},
 			},
 		},
@@ -364,10 +364,10 @@ func TestLexer(t *testing.T) {
 				}
 
 				if expFail != gotFail {
-					t.Errorf("expected failure\n> %s\n> got %s", expFail, gotFail)
+					t.Errorf("expected failure:\n> %s\ngot:\n> %s", expFail, gotFail)
 				}
 				if expTok != gotTok {
-					t.Errorf("expected %+v, got %+v", expTok, gotTok)
+					t.Errorf("expected %+v, got: %+v", expTok, gotTok)
 				}
 			}
 

@@ -44,6 +44,12 @@ func (lf LexicalFailure) Same(other LexicalFailure) bool {
 	return lf.Cause() == other.Cause()
 }
 
+// WithStrhex builds a new LexicalFailure by adding a dual string/hexadecimal representation of the
+// given string value at the end.
+func (lf LexicalFailure) WithStrhex(value string) LexicalFailure {
+	return LexicalFailure(fmt.Sprintf("%s: string(%s) hex(%x)", lf, value, value))
+}
+
 const (
 	TwoDotsInFloat     LexicalFailure = "met a second dot while reading float"
 	NonDigitInNumber   LexicalFailure = "met non-digit while reading number"
@@ -141,11 +147,14 @@ func (lex *Lexer) NextToken() (Token, *LexicalError) {
 		tok = lex.monotok(TOKEN_RBRACKET)
 	case '.':
 		if isDigit(lex.peekChar()) { // Float < 1.
+			// TOKEN_INT is not a mistake, reading the dot will change the type into TOKEN_FLOAT.
 			return lex.read(readNumber, TOKEN_INT)
 		}
 
+		// In theory dot must have a symbol after, but lexically this is correct.
 		tok = lex.monotok(TOKEN_DOT)
 	case ':':
+		// In theory colon must have a symbol after, but lexically this is correct.
 		tok = lex.monotok(TOKEN_COLON)
 	case '|':
 		tok = lex.monotok(TOKEN_PIPE)
@@ -154,7 +163,7 @@ func (lex *Lexer) NextToken() (Token, *LexicalError) {
 	case '_':
 		tok = lex.monotok(TOKEN_UNDER)
 	case '"':
-		return lex.read(readString, TOKEN_STRING)
+		return lex.read(readString, TOKEN_DQSTRING)
 	case ';':
 		return lex.read(readComment, TOKEN_COMMENT)
 	case 0:
@@ -278,7 +287,7 @@ func readSymbol(lex *Lexer, tok *Token) LexicalFailure {
 		after += string(lex.peekChar())
 	}
 
-	return LexicalFailure(fmt.Sprintf("%s: string(%s) hex(%x)", InvalidAfterSymbol, after, after))
+	return InvalidAfterSymbol.WithStrhex(after)
 }
 
 /////////////////////
