@@ -56,6 +56,7 @@ const (
 	EofInString        LexicalFailure = "met EOF while reading string"
 	NewlineInString    LexicalFailure = "met unescaped newline while reading string"
 	InvalidAfterSymbol LexicalFailure = "met invalid character after reading a symbol"
+	InvalidStart       LexicalFailure = "met character that is not a valid token start"
 )
 
 ///////////
@@ -176,9 +177,11 @@ func (lex *Lexer) NextToken() (Token, *LexicalError) {
 			return lex.read(readSymbol, TOKEN_SYMBOL)
 		} else if isDigit(lex.current) {
 			return lex.read(readNumber, TOKEN_INT)
-		} else {
-			tok = lex.monotok(TOKEN_ILLEGAL)
 		}
+
+		tok = lex.monotok(TOKEN_INVALID)
+		lex.forward()
+		return Token{}, &LexicalError{tok, InvalidStart.WithStrhex(tok.Literal)}
 	}
 
 	// The current character is a part of the returned token, so it must be skipped.

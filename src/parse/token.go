@@ -8,8 +8,8 @@ const (
 
 	// End of file.
 	TOKEN_EOF TokenType = "EOF"
-	// Illegal rune that has been immediately identified as being incorrect.
-	TOKEN_ILLEGAL TokenType = "ILLEGAL"
+	// Invalid rune identified at the start of a token.
+	TOKEN_INVALID TokenType = "INVALID"
 	// Comment that stretches to the end of the line (semicolon).
 	TOKEN_COMMENT TokenType = "COMMENT" // ;
 
@@ -30,17 +30,17 @@ const (
 	// Runes that validly end any token and can appear right next to anything.
 	// Whitespace is also a stoprune but is only a delimiter, so it's not represented here.
 
-	// Left parenthesis.
+	// Opening parenthesis.
 	TOKEN_LPAREN TokenType = "LPAREN" // (
-	// RIght parenthesis.
+	// Closing parenthesis.
 	TOKEN_RPAREN TokenType = "RPAREN" // )
-	// Left curly brace.
+	// Opening curly brace.
 	TOKEN_LBRACE TokenType = "LBRACE" // {
-	// Right curly brace.
+	// Closing curly brace.
 	TOKEN_RBRACE TokenType = "RBRACE" // }
-	// Left square bracket.
+	// Opening square bracket.
 	TOKEN_LBRACKET TokenType = "LBRACKET" // [
-	// Right square bracket.
+	// Closing square bracket.
 	TOKEN_RBRACKET TokenType = "RBRACKET" // ]
 
 	/////////////////

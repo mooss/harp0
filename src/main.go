@@ -29,7 +29,7 @@ func main() {
 				break
 			}
 
-			if tok.Type == parse.TOKEN_EOF || tok.Type == parse.TOKEN_ILLEGAL {
+			if tok.Type == parse.TOKEN_EOF || tok.Type == parse.TOKEN_INVALID {
 				break
 			}
 			fmt.Printf("%+v\n", tok)
