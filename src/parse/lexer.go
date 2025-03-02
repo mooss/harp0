@@ -128,24 +128,36 @@ func (lex *Lexer) peekChar() rune {
 
 // NextToken produces the next token by moving the lexer forward.
 func (lex *Lexer) NextToken() (Token, *LexicalError) {
-	var tok Token
+	// mono is a shortcut for a trivial token made of exactly one valid rune.
+	mono := func(typ TokenType) (Token, *LexicalError) {
+		res := Token{
+			Type:    typ,
+			Literal: string(lex.current),
+			Line:    lex.line,
+			Column:  lex.column,
+		}
+
+		// The current character is a part of the returned token, so it must be skipped.
+		lex.forward()
+		return res, nil
+	}
 
 	lex.skipWhitespace()
 
 	// Dispatch prefix.
 	switch lex.current {
 	case '(':
-		tok = lex.monotok(TOKEN_LPAREN)
+		return mono(TOKEN_LPAREN)
 	case ')':
-		tok = lex.monotok(TOKEN_RPAREN)
+		return mono(TOKEN_RPAREN)
 	case '{':
-		tok = lex.monotok(TOKEN_LBRACE)
+		return mono(TOKEN_LBRACE)
 	case '}':
-		tok = lex.monotok(TOKEN_RBRACE)
+		return mono(TOKEN_RBRACE)
 	case '[':
-		tok = lex.monotok(TOKEN_LBRACKET)
+		return mono(TOKEN_LBRACKET)
 	case ']':
-		tok = lex.monotok(TOKEN_RBRACKET)
+		return mono(TOKEN_RBRACKET)
 	case '.':
 		if isDigit(lex.peekChar()) { // Float < 1.
 			// TOKEN_INT is not a mistake, reading the dot will change the type into TOKEN_FLOAT.
@@ -153,30 +165,29 @@ func (lex *Lexer) NextToken() (Token, *LexicalError) {
 		}
 
 		// In theory dot must have a symbol after, but lexically this is correct.
-		tok = lex.monotok(TOKEN_DOT)
+		return mono(TOKEN_DOT)
 	case ':':
 		// In theory colon must have a symbol after, but lexically this is correct.
-		tok = lex.monotok(TOKEN_COLON)
+		return mono(TOKEN_COLON)
 	case '|':
-		tok = lex.monotok(TOKEN_PIPE)
+		return mono(TOKEN_PIPE)
 	case '\'':
-		tok = lex.monotok(TOKEN_QUOTE)
+		return mono(TOKEN_QUOTE)
 	case '_':
 		peek := lex.peekChar()
 		if canStartSymbol(peek) || isDigit(peek) {
 			return lex.read(readSymbol, TOKEN_SYMBOL)
 		}
 
-		tok = lex.monotok(TOKEN_UNDERSCORE)
+		return mono(TOKEN_UNDERSCORE)
 	case '"':
 		return lex.read(readString, TOKEN_DQSTRING)
 	case ';':
 		return lex.read(readComment, TOKEN_COMMENT)
 	case 0:
-		tok.Line = lex.line
-		tok.Column = lex.column
+		tok, _ := mono(TOKEN_EOF)
 		tok.Literal = ""
-		tok.Type = TOKEN_EOF
+		return tok, nil
 	default:
 		if canStartSymbol(lex.current) {
 			return lex.read(readSymbol, TOKEN_SYMBOL)
@@ -184,15 +195,9 @@ func (lex *Lexer) NextToken() (Token, *LexicalError) {
 			return lex.read(readNumber, TOKEN_INT)
 		}
 
-		tok = lex.monotok(TOKEN_INVALID)
-		lex.forward()
+		tok, _ := mono(TOKEN_INVALID)
 		return Token{}, &LexicalError{tok, InvalidStart.WithStrhex(tok.Literal)}
 	}
-
-	// The current character is a part of the returned token, so it must be skipped.
-	lex.forward()
-
-	return tok, nil
 }
 
 /////////////
@@ -321,16 +326,6 @@ func isStoprune(run rune) bool {
 
 ///////////////////////
 // Utility functions //
-
-// monotok is a shorcut that builds single-rune tokens.
-func (lex *Lexer) monotok(tokenType TokenType) Token {
-	return Token{
-		Type:    tokenType,
-		Literal: string(lex.current),
-		Line:    lex.line,
-		Column:  lex.column,
-	}
-}
 
 func (lex *Lexer) skipWhitespace() {
 	for {

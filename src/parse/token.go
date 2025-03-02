@@ -16,7 +16,7 @@ const (
 	///////////
 	// Atoms //
 
-	// Identifier supposed to be mapped to a value.
+	// Identifier mapped to a value.
 	TOKEN_SYMBOL TokenType = "SYMBOL"
 	// Integer.
 	TOKEN_INT TokenType = "INT"
