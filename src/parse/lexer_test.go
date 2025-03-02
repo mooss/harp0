@@ -277,6 +277,70 @@ func TestLexer(t *testing.T) {
 				{Type: TOKEN_EOF, Literal: "", Line: 1, Column: 6},
 			},
 		},
+		{
+			name:  "Empty string",
+			input: `""`,
+			expected: []expected{
+				{Type: TOKEN_STRING, Literal: `""`, Line: 1, Column: 0},
+				{Type: TOKEN_EOF, Literal: "", Line: 1, Column: 2},
+			},
+		},
+		{
+			name:  "String with only whitespace",
+			input: `" \t\r\n "`,
+			expected: []expected{
+				{Type: TOKEN_STRING, Literal: `" \t\r\n "`, Line: 1, Column: 0},
+				{Type: TOKEN_EOF, Literal: "", Line: 1, Column: 10},
+			},
+		},
+		{
+			name:  "Dot followed by non-digit, non-symbol start",
+			input: ".:",
+			expected: []expected{
+				{Type: TOKEN_DOT, Literal: ".", Line: 1, Column: 0, Reason: "BROKEN!!!, replace TOKEN_DOT by TOKEN_DOTSYMBOL"},
+				{Type: TOKEN_COLON, Literal: ":", Line: 1, Column: 1},
+				{Type: TOKEN_EOF, Literal: "", Line: 1, Column: 2},
+			},
+		},
+		{
+			name:  "More illegal characters",
+			input: "§±~`°•",
+			expected: []expected{
+				{Type: TOKEN_ILLEGAL, Literal: "§", Line: 1, Column: 0},
+				{Type: TOKEN_ILLEGAL, Literal: "±", Line: 1, Column: 1},
+				{Type: TOKEN_ILLEGAL, Literal: "~", Line: 1, Column: 2},
+				{Type: TOKEN_ILLEGAL, Literal: "`", Line: 1, Column: 3},
+				{Type: TOKEN_ILLEGAL, Literal: "°", Line: 1, Column: 4},
+				{Type: TOKEN_ILLEGAL, Literal: "•", Line: 1, Column: 5},
+				{Type: TOKEN_EOF, Literal: "", Line: 1, Column: 6},
+			},
+		},
+		{
+			name:  "CRLF Line Endings",
+			input: "abc\r\ndef",
+			expected: []expected{
+				{Type: TOKEN_SYMBOL, Literal: "abc", Line: 1, Column: 0},
+				{Type: TOKEN_SYMBOL, Literal: "def", Line: 2, Column: 0},
+				{Type: TOKEN_EOF, Literal: "", Line: 2, Column: 3},
+			},
+		},
+		{
+			name:  "Tab character",
+			input: "abc\tdef",
+			expected: []expected{
+				{Type: TOKEN_SYMBOL, Literal: "abc", Line: 1, Column: 0},
+				{Type: TOKEN_SYMBOL, Literal: "def", Line: 1, Column: 4},
+				{Type: TOKEN_EOF, Literal: "", Line: 1, Column: 7},
+			},
+		},
+		{
+			name:  "More escaped characters in string",
+			input: `"\\ \\\r \b \f \v \040 \x41"`,
+			expected: []expected{
+				{Type: TOKEN_STRING, Literal: `"\\ \\\r \b \f \v \040 \x41"`, Line: 1, Column: 0},
+				{Type: TOKEN_EOF, Literal: "", Line: 1, Column: 28},
+			},
+		},
 	}
 
 	for _, tt := range tests {
