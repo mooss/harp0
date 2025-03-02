@@ -294,9 +294,9 @@ func readSymbol(lex *Lexer, tok *Token) LexicalFailure {
 // Rune predicates //
 
 // canStartSymbol returns true if the given rune can start a valid symbol
-// (unicode letter, _, -, +, / or *).
+// (unicode letter, _, -).
 func canStartSymbol(run rune) bool {
-	return unicode.IsLetter(run) || strings.ContainsRune("_-+/*", run)
+	return unicode.IsLetter(run) || strings.ContainsRune("_-", run)
 }
 
 // isDigit returns true if run is an ASCII digit.
