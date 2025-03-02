@@ -60,6 +60,19 @@ func TestLexer(t *testing.T) {
 			},
 		},
 		{
+			name:  "Method call",
+			input: "obj.method(arg)",
+			expected: []Token{
+				{Type: TOKEN_SYMBOL, Literal: "obj", Line: 1, Column: 0},
+				{Type: TOKEN_DOT, Literal: ".", Line: 1, Column: 3},
+				{Type: TOKEN_SYMBOL, Literal: "method", Line: 1, Column: 4},
+				{Type: TOKEN_LPAREN, Literal: "(", Line: 1, Column: 10},
+				{Type: TOKEN_SYMBOL, Literal: "arg", Line: 1, Column: 11},
+				{Type: TOKEN_RPAREN, Literal: ")", Line: 1, Column: 14},
+				{Type: TOKEN_EOF, Literal: "", Line: 1, Column: 15},
+			},
+		},
+		{
 			name:  "Mixed symbols and numbers", // Broken, DOT needs to be replaced with DOTSYMBOL.
 			input: "a123 b45.67",
 			expected: []Token{
@@ -209,13 +222,13 @@ func TestLexer(t *testing.T) {
 		},
 		{
 			name:  "Zero width characters",
-			input: "a\u200b\u200cb",
+			input: "a \u200b\u200cb",
 			expected: []Token{
 				{Type: TOKEN_SYMBOL, Literal: "a", Line: 1, Column: 0},
-				{Type: TOKEN_ILLEGAL, Literal: "\u200b", Line: 1, Column: 1},
-				{Type: TOKEN_ILLEGAL, Literal: "\u200c", Line: 1, Column: 2},
-				{Type: TOKEN_SYMBOL, Literal: "b", Line: 1, Column: 3},
-				{Type: TOKEN_EOF, Literal: "", Line: 1, Column: 4},
+				{Type: TOKEN_ILLEGAL, Literal: "\u200b", Line: 1, Column: 2},
+				{Type: TOKEN_ILLEGAL, Literal: "\u200c", Line: 1, Column: 3},
+				{Type: TOKEN_SYMBOL, Literal: "b", Line: 1, Column: 4},
+				{Type: TOKEN_EOF, Literal: "", Line: 1, Column: 5},
 			},
 		},
 		{
@@ -225,6 +238,22 @@ func TestLexer(t *testing.T) {
 				{Type: TOKEN_ILLEGAL, Literal: "\ufeff", Line: 1, Column: 0},
 				{Type: TOKEN_SYMBOL, Literal: "abc", Line: 1, Column: 1},
 				{Type: TOKEN_EOF, Literal: "", Line: 1, Column: 4},
+			},
+		},
+		{
+			name:  "Symbol followed by |",
+			input: "lost|",
+			err: &LexicalError{
+				Token:  Token{Type: TOKEN_SYMBOL, Literal: "lost", Line: 1, Column: 0},
+				Reason: InvalidAfterSymbol + ": string(|) hex(7c)",
+			},
+		},
+		{
+			name:  "Symbol followed by .1",
+			input: "lost.1",
+			err: &LexicalError{
+				Token:  Token{Type: TOKEN_SYMBOL, Literal: "lost", Line: 1, Column: 0},
+				Reason: InvalidAfterSymbol + ": string(.1) hex(2e31)",
 			},
 		},
 	}

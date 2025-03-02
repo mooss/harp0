@@ -27,13 +27,29 @@ func (le LexicalError) Error() string {
 }
 
 // LexicalFailure describes what caused the lexer to fail.
+// It can be followed by additional information specified after `: `.
+// When testing if two lexical failures are of the same kind, use the `Same` method.
 type LexicalFailure string
 
+func (lf LexicalFailure) Cause() string {
+	colon := strings.Index(string(lf), ": ")
+	if colon < 0 {
+		return string(lf)
+	}
+
+	return string(lf[:colon])
+}
+
+func (lf LexicalFailure) Same(other LexicalFailure) bool {
+	return lf.Cause() == other.Cause()
+}
+
 const (
-	TwoDotsInFloat   LexicalFailure = "met a second dot while reading float"
-	NonDigitInNumber LexicalFailure = "met non-digit while reading number"
-	EofInString      LexicalFailure = "met EOF while reading string"
-	NewlineInString  LexicalFailure = "met unescaped newline while reading string"
+	TwoDotsInFloat     LexicalFailure = "met a second dot while reading float"
+	NonDigitInNumber   LexicalFailure = "met non-digit while reading number"
+	EofInString        LexicalFailure = "met EOF while reading string"
+	NewlineInString    LexicalFailure = "met unescaped newline while reading string"
+	InvalidAfterSymbol LexicalFailure = "met invalid character after reading a symbol"
 )
 
 ///////////
@@ -109,6 +125,7 @@ func (lex *Lexer) NextToken() (Token, *LexicalError) {
 
 	lex.skipWhitespace()
 
+	// Dispatch prefix.
 	switch lex.current {
 	case '(':
 		tok = lex.monotok(TOKEN_LPAREN)
@@ -165,6 +182,16 @@ func (lex *Lexer) NextToken() (Token, *LexicalError) {
 // Readers //
 
 // reader defines a function iterating forward in a lexer to build a token.
+//
+// While readers are meant to move forward through the input, they also have the key responsibility
+// to return an error when finding an invalid character.
+// Examples:
+//   - A string cannot end with EOF.
+//   - A symbol can be suffixed by a dot, but the next character has to be the start of another
+//     symbol (method call).
+//
+// Where the dispatching switch of NextToken handles token prefixes, readers continue the work by
+// going through the middle part and the suffixes, checking for invalid characters along the way.
 type reader func(*Lexer, *Token) LexicalFailure
 
 // read takes a reader, does boilerplate pre and post processing and builds a token.
@@ -241,7 +268,17 @@ func readSymbol(lex *Lexer, tok *Token) LexicalFailure {
 		lex.forward()
 	}
 
-	return ""
+	// Symbols can be followed by stoprunes or by a dot followed by a symbol.
+	if isStoprune(lex.current) || (lex.current == '.' && canStartSymbol(lex.peekChar())) {
+		return ""
+	}
+
+	after := string(lex.current)
+	if lex.current == '.' {
+		after += string(lex.peekChar())
+	}
+
+	return LexicalFailure(fmt.Sprintf("%s: string(%s) hex(%x)", InvalidAfterSymbol, after, after))
 }
 
 /////////////////////
