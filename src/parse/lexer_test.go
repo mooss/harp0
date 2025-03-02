@@ -122,7 +122,7 @@ func TestLexer(t *testing.T) {
 				{Type: TOKEN_COLON, Literal: ":", Line: 1, Column: 2},
 				{Type: TOKEN_PIPE, Literal: "|", Line: 1, Column: 4},
 				{Type: TOKEN_QUOTE, Literal: "'", Line: 1, Column: 6},
-				{Type: TOKEN_UNDER, Literal: "_", Line: 1, Column: 8},
+				{Type: TOKEN_UNDERSCORE, Literal: "_", Line: 1, Column: 8},
 				{Type: TOKEN_EOF, Literal: "", Line: 1, Column: 9},
 			},
 		},
@@ -354,11 +354,68 @@ func TestLexer(t *testing.T) {
 			},
 		},
 		{
-			name:  "More escaped characters in string",
-			input: `"\\ \\\r \b \f \v \040 \x41"`,
+			name:  "More valid string escapes",
+			input: `"\\a \\b \\f \\n \\r \\t \\v \\\""`,
 			expected: []expected{
-				{Type: TOKEN_DQSTRING, Literal: `"\\ \\\r \b \f \v \040 \x41"`, Line: 1, Column: 0},
-				{Type: TOKEN_EOF, Literal: "", Line: 1, Column: 28},
+				{Type: TOKEN_DQSTRING, Literal: `"\\a \\b \\f \\n \\r \\t \\v \\\""`, Line: 1, Column: 0},
+				{Type: TOKEN_EOF, Literal: "", Line: 1, Column: 34},
+			},
+		},
+		{
+			name:  "Escape at end of string",
+			input: `"abc\\"`,
+			expected: []expected{
+				{Type: TOKEN_DQSTRING, Literal: `"abc\\"`, Line: 1, Column: 0},
+				{Type: TOKEN_EOF, Literal: "", Line: 1, Column: 7},
+			},
+		},
+		{
+			name:  "Symbol starting with underscore",
+			input: "_abc",
+			expected: []expected{
+				{Type: TOKEN_SYMBOL, Literal: "_abc", Line: 1, Column: 0},
+				{Type: TOKEN_EOF, Literal: "", Line: 1, Column: 4},
+			},
+		},
+		{
+			name:  "Symbol with multiple underscores and hyphens",
+			input: "a_b-c_d",
+			expected: []expected{
+				{Type: TOKEN_SYMBOL, Literal: "a_b-c_d", Line: 1, Column: 0},
+				{Type: TOKEN_EOF, Literal: "", Line: 1, Column: 7},
+			},
+		},
+		{
+			name:  "Symbol immediately followed by EOF",
+			input: "abc",
+			expected: []expected{
+				{Type: TOKEN_SYMBOL, Literal: "abc", Line: 1, Column: 0},
+				{Type: TOKEN_EOF, Literal: "", Line: 1, Column: 3},
+			},
+		},
+		{
+			name:  "Float with trailing dot",
+			input: "123.",
+			expected: []expected{
+				{Type: TOKEN_FLOAT, Literal: "123.", Line: 1, Column: 0},
+				{Type: TOKEN_EOF, Literal: "", Line: 1, Column: 4},
+			},
+		},
+		{
+			name:  "Single dot",
+			input: ".",
+			expected: []expected{
+				{Type: TOKEN_DOT, Literal: ".", Line: 1, Column: 0},
+				{Type: TOKEN_EOF, Literal: "", Line: 1, Column: 1},
+			},
+		},
+		{
+			name:  "Number followed by invalid",
+			input: "123§",
+			expected: []expected{
+				{Type: TOKEN_INT, Literal: "123", Line: 1, Column: 0, Reason: NonDigitInNumber},
+				{Type: TOKEN_INVALID, Literal: "§", Line: 1, Column: 3, Reason: InvalidStart.WithStrhex("§")},
+				{Type: TOKEN_EOF, Literal: "", Line: 1, Column: 4},
 			},
 		},
 	}

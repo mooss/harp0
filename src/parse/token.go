@@ -53,7 +53,7 @@ const (
 	// Single quote.
 	TOKEN_QUOTE TokenType = "QUOTE" // '
 	// Underscore.
-	TOKEN_UNDER TokenType = "UNDER" // _
+	TOKEN_UNDERSCORE TokenType = "UNDER" // _
 	// Pipe.
 	TOKEN_PIPE TokenType = "PIPE" // |
 )

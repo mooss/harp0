@@ -162,7 +162,12 @@ func (lex *Lexer) NextToken() (Token, *LexicalError) {
 	case '\'':
 		tok = lex.monotok(TOKEN_QUOTE)
 	case '_':
-		tok = lex.monotok(TOKEN_UNDER)
+		peek := lex.peekChar()
+		if canStartSymbol(peek) || isDigit(peek) {
+			return lex.read(readSymbol, TOKEN_SYMBOL)
+		}
+
+		tok = lex.monotok(TOKEN_UNDERSCORE)
 	case '"':
 		return lex.read(readString, TOKEN_DQSTRING)
 	case ';':
