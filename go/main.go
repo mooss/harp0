@@ -3,7 +3,7 @@ package main
 import (
 	"bufio"
 	"fmt"
-	"mooss/harp/parse"
+	"mooss/harp/lex"
 	"os"
 )
 
@@ -20,7 +20,7 @@ func main() {
 		}
 
 		input := scanner.Text()
-		lexer := parse.NewLexer(input)
+		lexer := lex.NewLexer(input)
 
 		for {
 			tok, err := lexer.NextToken()
@@ -29,7 +29,7 @@ func main() {
 				break
 			}
 
-			if tok.Type == parse.TOKEN_EOF || tok.Type == parse.TOKEN_INVALID {
+			if tok.Type == lex.TOKEN_EOF || tok.Type == lex.TOKEN_INVALID {
 				break
 			}
 			fmt.Printf("%+v\n", tok)

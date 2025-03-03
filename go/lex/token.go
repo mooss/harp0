@@ -1,4 +1,4 @@
-package parse
+package lex
 
 type TokenType string
 
